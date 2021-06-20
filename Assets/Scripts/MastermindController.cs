@@ -6,35 +6,51 @@ using TMPro;
 
 public class MastermindController : MonoBehaviour
 {
-    [SerializeField] List<int> aIGuesses, correctNums;
-    [SerializeField] List<bool> correctNumsBool;
-    [SerializeField] int corr;
-    [SerializeField] List<string> aIGuessLog;
-    [SerializeField] List<string> potentialAnswers;
-    [SerializeField] int potAnsPtr;
 
-    [SerializeField] bool correctNumsFound;
+    [SerializeField] List<int> aIGuesses; // array of the 4 digits of the AI's current guess
+    [SerializeField] List<int> correctNums; // array to hold 4 digits deduced as being in the correct answer
+    [SerializeField] List<bool> correctNumsBool; //array telling which of the 4 digits have been correctly deduced
+    [SerializeField] List<string> aIGuessLog; // array of all guesses 
+    [SerializeField] List<string> potentialAnswers; // array to hold permutations of correctly deduced digits
+    [SerializeField] int potAnsPtr; //int to traverse potentialAnswers list
 
-    [SerializeField] TMP_InputField playerInputBox;
+    [SerializeField] bool correctNumsFound; //is true when all 4 correct digits have been deduced
 
-    [SerializeField] TextMeshProUGUI clickToStartText, enterNumberText, aIGuessText, previousGuessesText, eachDigitDiffText;
 
-    [SerializeField] List<int> notInAnsNarrow, notInAns, isInAns;
+    [SerializeField] TMP_InputField playerInputBox;  // for player to input the number
+    [SerializeField] TMP_InputField bullsInput, cowsInput; // for player to input cows and bulls of each AI guess while not in auto mode
 
-    [SerializeField] bool[,] notInSlot;
-    [SerializeField] List<bool> notInSlot1;
-    [SerializeField] List<bool> notInSlot2;
-    [SerializeField] List<bool> notInSlot3;
-    [SerializeField] List<bool> notInSlot4;
+    //various ui text objects
+    [SerializeField] TextMeshProUGUI clickToStartText, enterNumberText, aIGuessText, previousGuessesText, eachDigitDiffText, enterNumberOfBullsAndCowsText, gameOverText, turnsText;
 
-    [SerializeField] List<int> wrongCheck;
-    [SerializeField] int wrongCheckCounter;
-    [SerializeField] bool cancelling;
+    // lists to hold digits in and not in the correct code
+    [SerializeField] List<int> notInAnsNarrow; // to be used in NarrowingDownCorrectNumbers state
+    [SerializeField] List<int> isInAnsNarrow;
+
+    [SerializeField] List<int> notInAns; // used in StartingGuesses state
+    [SerializeField] List<int> isInAns; // used in StartingGuesses state
+
+    [SerializeField] bool[,] notInSlot; // 2D array to tell what numbers have been deduced as not in each specific place of the code
+
+    [SerializeField] int narrowingCounter; //increments every turn in the NarrowingDownCorrectNumbers state to test each as correct or not
+    [SerializeField] bool cancelling; // if true,  numbers are being cancelled out in NarrowingDownCorrectNumbers
     [SerializeField] List<string> previousGuesses;
-    [SerializeField] int bulls, cows, turns, prevBullPlusCow, firstTurnBullsPlusCows, startingGuessCounter, lastFourCounter, lastFourBullsCows;
 
+
+    [SerializeField] int bulls, cows, turns;
+
+    //used in StartingGuesses
+    [SerializeField] int prevBullPlusCow; // bulls+cows of the previous turn
+    [SerializeField] int firstTurnBullsPlusCows; // bulls+cows of the first turn (3210)
+    [SerializeField] int startingGuessCounter; // used to go through numbers 4 - 9 to check 
+    [SerializeField] int lastFourCounter; //used to check if numbers 0 - 3 are correct digits 
+
+
+    [SerializeField] int resetTurns; // to keep track of the first 2 turns of StartingGuesses when SoftReset() is called
     public GameState gameState;
-    public int idiot;
+    public int recurringGuesses;
+
+    [SerializeField] Toggle auto; // toggle for automatic mode, on by default
 
     // Start is called before the first frame update
     void Start()
@@ -43,31 +59,17 @@ public class MastermindController : MonoBehaviour
         notInAns = new List<int>();
         isInAns = new List<int>();
 
-        //notInSlot1 = new List<bool>();
-        //notInSlot2 = new List<bool>();
-        //notInSlot3 = new List<bool>();
-        //notInSlot4 = new List<bool>();
     }
 
     // Update is called once per frame
     void Update()
     {
         GameStateMachine();
-        for (int i = 0; i < 10; i++)
+
+        if (auto.isOn)
         {
-            notInSlot1[i] = notInSlot[0, i];
-        }
-        for (int i = 0; i < 10; i++)
-        {
-            notInSlot2[i] = notInSlot[1, i];
-        }
-        for (int i = 0; i < 10; i++)
-        {
-            notInSlot3[i] = notInSlot[2, i];
-        }
-        for (int i = 0; i < 10; i++)
-        {
-            notInSlot4[i] = notInSlot[3, i];
+            bullsInput.text = bulls.ToString();
+            cowsInput.text = cows.ToString();
         }
     }
 
@@ -91,16 +93,16 @@ public class MastermindController : MonoBehaviour
 
             case GameState.PlayerInput:
 
-                if(playerInputBox.text.Length == 4 && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+                if (playerInputBox.text.Length == 4 && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
                 {
                     int count = 0;
                     bool repeatedDigit = false;
-                    for(int i = 0; i < 4; i++)
+                    for (int i = 0; i < 4; i++)
                     {
-                        for(int j = 0; j < 4; j++)
+                        for (int j = 0; j < 4; j++)
                         {
 
-                            if(playerInputBox.text.Substring(i, 1) == playerInputBox.text.Substring(j, 1) && i != j)
+                            if (playerInputBox.text.Substring(i, 1) == playerInputBox.text.Substring(j, 1) && i != j)
                             {
                                 repeatedDigit = true;
                                 i = 4;
@@ -113,34 +115,29 @@ public class MastermindController : MonoBehaviour
                         eachDigitDiffText.color = Color.red;
                         count = 0;
                     }
-                    else
+                    else //if digits in player's code don't repeat move on to next state
                     {
-                        gameState = GameState.RandomNumberGuessing;
+                        gameState = GameState.StartingGuesses;
                         eachDigitDiffText.color = Color.black;
                         enterNumberText.gameObject.SetActive(false);
                     }
                 }
                 break;
 
-            //case GameState.AIGuess:
-            //    //StartCoroutine(DoGuess());
-            //    Guess();
-
-            //    aIGuessText.text = "";
-            //    bulls = 0;
-            //    cows = 0;
-
-            //    break;
-            case GameState.RandomNumberGuessing:
-
+            case GameState.StartingGuesses:
+                if (turns > 0)
+                {
+                    previousGuessesText.text += "bulls:" + bulls + " cows:" + cows + "\n";
+                }
                 aIGuessText.text = "";
                 bulls = 0;
                 cows = 0;
-                //RandomGuess();
                 StartingGuesses();
                 break;
 
             case GameState.NarrowingDownCorrectNumbers:
+                previousGuessesText.text += "bulls:" + bulls + " cows:" + cows + "\n";
+
                 aIGuessText.text = "";
                 bulls = 0;
                 cows = 0;
@@ -149,73 +146,35 @@ public class MastermindController : MonoBehaviour
                 CancelOut();
                 break;
             case GameState.GoingThroughPermutations:
+                previousGuessesText.text += "bulls:" + bulls + " cows:" + cows + "\n";
+
+                CheckPermutationList();
+
                 aIGuessText.text = "";
                 bulls = 0;
                 cows = 0;
 
-                CheckPermutationList();
 
                 gameState = GameState.CheckForBulls;
                 break;
 
             case GameState.BullsAndCows:
-                CheckForBullsAndCows();
-                if (cancelling)
-                {
-                    gameState = GameState.NarrowingDownCorrectNumbers;
-
-                }
-                else
-                {
-                    if (bulls == 0)
-                    {
-                        //bullZeroCount++;
-                        for (int i = 0; i < 4; i++)
-                        {
-                            if (aIGuesses[i] < 10)
-                            {
-                                notInSlot[i, aIGuesses[i]] = true;
-                            }
-                        }
-                    }
-                    if (cows + bulls == 0)
-                    {
-                        for (int i = 0; i < 4; i++)
-                        {
-                            notInAns.Add(aIGuesses[i]);
-                        }
-                        cancelling = true;
-                    }
-                    if ((bulls + cows == 4) || corr + cows == 4)
-                    {
-                        print("break22");
-
-                        for (int k = 0; k < 4; k++)
-                        {
-                            correctNums[k] = aIGuesses[k];
-                        }
-                        correctNumsFound = true;
-
-                    }
-                    gameState = GameState.WrongRightGuess;
-                }
-                prevBullPlusCow = bulls + cows;
-                if(turns == 0)
-                {
-                    firstTurnBullsPlusCows = bulls + cows;
-                }
+                StartCoroutine(CheckForBullsAndCows());
 
                 break;
             case GameState.CheckForBulls:
-                CheckForBulls();
+                StartCoroutine(CheckForBulls());
 
-                gameState = GameState.WrongRightGuess;
+                //gameState = GameState.WrongRightGuess;
 
                 break;
 
             case GameState.WrongRightGuess:
+
                 turns++;
-                if(bulls == 4)
+                turnsText.text = "Turns: " + (turns);
+
+                if (bulls == 4)
                 {
                     gameState = GameState.GameOver;
 
@@ -227,325 +186,438 @@ public class MastermindController : MonoBehaviour
                             aIGuessText.text += listMem.ToString(); // sets aIGuessText to the current AI guess
                         }
                     }
+                    previousGuessesText.text += "bulls:" + bulls + " cows:" + cows + "\n";
+
                 }
                 else
                 {
-                    gameState = GameState.RandomNumberGuessing;
+                    gameState = GameState.StartingGuesses;
 
                     if (bulls == 0)
                     {
-                        gameState = GameState.RandomNumberGuessing;
+                        gameState = GameState.StartingGuesses;
                     }
                     if (cows + bulls == 0)
                     {
                         gameState = GameState.NarrowingDownCorrectNumbers;
                     }
-                    if ((bulls + cows == 4 || corr + cows == 4) || correctNumsFound)
+                    if ((bulls + cows == 4) || correctNumsFound)
                     {
                         gameState = GameState.GoingThroughPermutations;
                     }
 
-                    //Infer();
                 }
-                //if(gameState != GameState.WrongRightGuess)
-                //{
-                //    bulls = 0;
-                //    cows = 0;
-
-                //}
-
                 break;
 
             case GameState.GameOver:
 
+                gameOverText.gameObject.SetActive(true);
+
                 if ((Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
                 {
+                    Reset();
 
-                    playerInputBox.text = "";
-                    potAnsPtr = 0;
-                    correctNumsFound = false;
-                    enterNumberText.gameObject.SetActive(true);
-                    aIGuessText.text = "";
-                    previousGuessesText.text = "";
-                    bulls = 0;
-                    cows = 0;
-                    corr = 0;
-                    turns = 0;
-                    prevBullPlusCow = 0;
-                    firstTurnBullsPlusCows = 0;
-                    startingGuessCounter = 0;
-                    lastFourCounter = 0;
-                    for (int i = 0; i < 4; i++)
-                    {
-                        correctNumsBool[i] = false;
-                        correctNums[i] = 0;
-                        aIGuesses[i] = 0;
-
-                    }
-                    potentialAnswers.Clear();
-                    aIGuessLog.Clear();
-                    previousGuesses.Clear();
-                    notInSlot = new bool[4, 10];
-                    idiot = 0;
-                    cancelling = false;
-                    wrongCheckCounter = 0;
-                    wrongCheck.Clear();
-                    notInAns.Clear();
-                    notInAnsNarrow.Clear();
-                    isInAns.Clear();
-                    gameState = GameState.PlayerInput;
                 }
                 break;
 
-            case GameState.WrongChecking:
-                aIGuessText.text = "";
-                bulls = 0;
-                cows = 0;
-
-                turns++;
-                CancelOut();
-
-                break;
         }
     }
 
+    public void Reset() //Resets the game back to PlayerInput state
+    {
+        turnsText.text = "Turns: 0"; 
+        playerInputBox.text = "";
+        potAnsPtr = 0;
+        correctNumsFound = false;
+        enterNumberText.gameObject.SetActive(true);
+        aIGuessText.text = "";
+        previousGuessesText.text = "";
+        bulls = 0;
+        cows = 0;
+        turns = 0;
+        prevBullPlusCow = 0;
+        firstTurnBullsPlusCows = 0;
+        startingGuessCounter = 0;
+        lastFourCounter = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            correctNumsBool[i] = false;
+            correctNums[i] = 0;
+            aIGuesses[i] = 0;
+
+        }
+        potentialAnswers.Clear();
+        aIGuessLog.Clear();
+        previousGuesses.Clear();
+        notInSlot = new bool[4, 10];
+        recurringGuesses = 0;
+        cancelling = false;
+        narrowingCounter = 0;
+        isInAnsNarrow.Clear();
+        notInAns.Clear();
+        notInAnsNarrow.Clear();
+        isInAns.Clear();
+        enterNumberOfBullsAndCowsText.gameObject.SetActive(false);
+        gameState = GameState.PlayerInput;
+
+        gameOverText.gameObject.SetActive(false);
+
+    }
+
+    void SoftReset() //reset AI guesses back to StartingGuesses state, for when players enters wrong value for bulls or cows and game is unable to find correct code
+    {
+        potAnsPtr = 0;
+        correctNumsFound = false;
+        bulls = 0;
+        cows = 0;
+        prevBullPlusCow = 0;
+        firstTurnBullsPlusCows = 0;
+        startingGuessCounter = 3;
+        lastFourCounter = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            correctNumsBool[i] = false;
+            correctNums[i] = 0;
+            aIGuesses[i] = 0;
+
+        }
+        potentialAnswers.Clear();
+        previousGuesses.Clear();
+        notInSlot = new bool[4, 10];
+        recurringGuesses = 0;
+        cancelling = false;
+        narrowingCounter = 0;
+        isInAnsNarrow.Clear();
+        notInAns.Clear();
+        notInAnsNarrow.Clear();
+        isInAns.Clear();
+        gameState = GameState.StartingGuesses;
+        resetTurns = 0;
+        previousGuessesText.text += "IMPOSSIBLE NUMBER, STARTING OVER" + "\n";
+
+
+    }
     void StartingGuesses()
     {
-        if (startingGuessCounter <= 9)
+        if (notInAns.Count == 0 && startingGuessCounter > 9)
         {
-            if (turns == 0)
+            SoftReset();
+        }
+        else
+        {
+            if (startingGuessCounter <= 9)
             {
-                aIGuesses[0] = 3;
-                aIGuesses[1] = 2;
-                aIGuesses[2] = 1;
-                aIGuesses[3] = 0;
-                startingGuessCounter = 4;
-            }
-            else if (turns == 1)
-            {
-
-                if (prevBullPlusCow == 0)
+                if (turns == 0 || resetTurns == 0)
                 {
-                    notInAns.Add(aIGuesses[0]);
-                    notInAns.Add(aIGuesses[1]);
-                    notInAns.Add(aIGuesses[2]);
-                    notInAns.Add(aIGuesses[3]);
+                    aIGuesses[0] = 3;
+                    aIGuesses[1] = 2;
+                    aIGuesses[2] = 1;
+                    aIGuesses[3] = 0;
+                    startingGuessCounter = 4;
+                    resetTurns++;
                 }
-                else
+                else if (turns == 1 || resetTurns == 1)
                 {
 
                     aIGuesses[3] = startingGuessCounter;
+                    resetTurns++;
                 }
-            }
-            else if (turns > 1)
-            {
-                if (prevBullPlusCow >= firstTurnBullsPlusCows)
+                else if (turns > 1)
                 {
-                    isInAns.Add(startingGuessCounter);
-                }
-                if (prevBullPlusCow <= firstTurnBullsPlusCows)
-                {
-                    //if (!isInAns.Contains(startingGuessCounter))
-                    //{
+                    if (prevBullPlusCow >= firstTurnBullsPlusCows)
+                    {
+                        isInAns.Add(startingGuessCounter);
+                    }
+                    if (prevBullPlusCow <= firstTurnBullsPlusCows)
+                    {
                         notInAns.Add(startingGuessCounter);
-                    //}
+                    }
+                    startingGuessCounter++;
+                    aIGuesses[3] = startingGuessCounter;
+
                 }
+            }
+            else if (isInAns.Count < 4)
+            {
+                if (lastFourCounter > 0)
+                {
+                    if (prevBullPlusCow > 0)
+                    {
+                        isInAns.Add(lastFourCounter - 1);
+                    }
+                }
+                for (int i = 0; i < isInAns.Count; i++)
+                {
+                    if (notInAns.Contains(isInAns[i]))
+                    {
+                        notInAns.Remove(isInAns[i]);
+                    }
+                }
+                aIGuesses[0] = notInAns[0];
+                aIGuesses[1] = notInAns[1];
+                aIGuesses[2] = notInAns[2];
+                aIGuesses[3] = lastFourCounter;
+
+                lastFourCounter++;
+            }
+            else if (isInAns.Count > 4)
+            {
+                aIGuesses[0] = notInAns[0];
+                aIGuesses[1] = notInAns[1];
+                aIGuesses[2] = notInAns[2];
+                if (notInAns.Count < 4)
+                {
+                    notInAns.Add(0);
+                }
+                aIGuesses[3] = notInAns[3];
+
+            }
+            else if (isInAns.Count == 4)
+            {
+                aIGuesses[0] = isInAns[0];
+                aIGuesses[1] = isInAns[1];
+                aIGuesses[2] = isInAns[2];
+                aIGuesses[3] = isInAns[3];
+            }
+
+            if (startingGuessCounter == 10)
+            {
+                gameState = GameState.StartingGuesses;
                 startingGuessCounter++;
-                aIGuesses[3] = startingGuessCounter;
-            }
-        }
-        else if(isInAns.Count <= 4)
-        {
-            if(lastFourCounter > 0)
-            {
-                if(prevBullPlusCow > 0)
-                {
-                    isInAns.Add(lastFourCounter - 1);
-                }
-            }
-            for(int i = 0; i < isInAns.Count; i++)
-            {
-                if (notInAns.Contains(isInAns[i]))
-                {
-                    notInAns.Remove(isInAns[i]);
-                }
-            }
-            //for(int i = 0; i < 3; i++)
-            //{
-            //    if(notInAns[i] == undefined)
-            //    aIGuesses[i] = notInAns[i];
-
-            //}
-            aIGuesses[0] = notInAns[0];
-            aIGuesses[1] = notInAns[1];
-            aIGuesses[2] = notInAns[2];
-            aIGuesses[3] = lastFourCounter;
-
-            lastFourCounter++;
-        }
-        else if(isInAns.Count > 4)
-        {
-            aIGuesses[0] = notInAns[0];
-            aIGuesses[1] = notInAns[1];
-            aIGuesses[2] = notInAns[2];
-            if(notInAns.Count < 4)
-            {
-                notInAns.Add(0);
-            }
-            aIGuesses[3] = notInAns[3];
-
-        }
-        else
-        {
-            aIGuesses[0] = isInAns[0];
-            aIGuesses[1] = isInAns[1];
-            aIGuesses[2] = isInAns[2];
-            aIGuesses[3] = isInAns[3];
-        }
-        foreach (var listMem in aIGuesses)
-        {
-            aIGuessText.text += listMem.ToString();
-        }
-        aIGuessLog.Add(aIGuessText.text);
-        previousGuessesText.text += turns + "       " + aIGuessText.text + "\n";
-
-        gameState = GameState.BullsAndCows;
-
-    }
-    int RandomNumber()
-    {
-        int rand = Random.Range(0, 10);
-
-        return rand;
-    }
-    void CheckForBullsAndCows()
-    {
-
-        print("break2");
-
-        for (int i = 0; i < 4; i++)
-        {
-            if (aIGuesses[i].ToString() == playerInputBox.text.Substring(i, 1))
-            {
-                bulls++;
             }
             else
             {
-                print("break21");
-
-                for (int j = 0; j < 4; j++)
+                foreach (var listMem in aIGuesses)
                 {
-                    if (aIGuesses[i].ToString() == playerInputBox.text.Substring(j, 1))
+                    aIGuessText.text += listMem.ToString();
+                }
+                aIGuessLog.Add(aIGuessText.text);
+                previousGuessesText.text += turns + "       " + aIGuessText.text + "\n";
+
+
+                gameState = GameState.BullsAndCows;
+            }
+        }
+    }
+    IEnumerator CheckForBullsAndCows() // counts bulls and cows, if auto is off take player input for bulls and cows
+    {
+
+        print("break2");
+        if (auto.isOn)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                if (aIGuesses[i].ToString() == playerInputBox.text.Substring(i, 1))
+                {
+                    bulls++;
+                }
+                else
+                {
+                    print("break21");
+
+                    for (int j = 0; j < 4; j++)
                     {
-                        cows++;
+                        if (aIGuesses[i].ToString() == playerInputBox.text.Substring(j, 1))
+                        {
+                            cows++;
+                        }
                     }
                 }
             }
-        }
 
-        if (cancelling)
-        {
-            if(cows > 0 || bulls > 0)
+            if (cancelling)
             {
-                wrongCheck.Add(aIGuesses[3]);
+                if (cows > 0 || bulls > 0)
+                {
+                    isInAnsNarrow.Add(aIGuesses[3]);
+                }
             }
+            yield return new WaitForEndOfFrame();
+
+            if (cancelling)
+            {
+                gameState = GameState.NarrowingDownCorrectNumbers;
+
+            }
+            else
+            {
+                if (bulls == 0)
+                {
+                    for (int i = 0; i < 4; i++)
+                    {
+                        if (aIGuesses[i] < 10)
+                        {
+                            notInSlot[i, aIGuesses[i]] = true;
+                        }
+                    }
+                }
+                if (cows + bulls == 0)
+                {
+                    for (int i = 0; i < 4; i++)
+                    {
+                        notInAnsNarrow.Add(aIGuesses[i]);
+                    }
+                    cancelling = true;
+                }
+                if ((bulls + cows == 4))
+                {
+                    print("break22");
+
+                    for (int k = 0; k < 4; k++)
+                    {
+                        correctNums[k] = aIGuesses[k];
+                    }
+                    correctNumsFound = true;
+
+                }
+                gameState = GameState.WrongRightGuess;
+            }
+            prevBullPlusCow = bulls + cows;
+            if (turns == 0)
+            {
+                firstTurnBullsPlusCows = bulls + cows;
+            }
+
         }
-        else
+        else if (!auto.isOn)
         {
+            enterNumberOfBullsAndCowsText.gameObject.SetActive(true);
+            bool go = false;
 
-            //if (bulls == 0)
-            //{
-            //    for (int i = 0; i < 4; i++)
-            //    {
-            //        notInSlot[i, aIGuesses[i]] = true;
-            //    }
-            //}
-            //if (cows + bulls == 0)
-            //{
-            //    for (int i = 0; i < 4; i++)
-            //    {
-            //        notInAns.Add(aIGuesses[i]);
-            //    }
-            //    cancelling = true;
+            if (bullsInput.text.Length == 1 && cowsInput.text.Length == 1 && int.Parse(bullsInput.text) + int.Parse(cowsInput.text) <= 4 && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+            {
+                bulls = int.Parse(bullsInput.text);
+                cows = int.Parse(cowsInput.text);
+                gameState = GameState.WrongRightGuess;
 
-            //}
-            //if ((bulls + cows == 4) || corr + cows == 4)
-            //{
-            //    print("break22");
+                if (cancelling)
+                {
+                    if (cows > 0 || bulls > 0)
+                    {
+                        isInAnsNarrow.Add(aIGuesses[3]);
+                    }
+                }
+                go = true;
+            }
+            yield return new WaitUntil(() => go == true);
+            enterNumberOfBullsAndCowsText.gameObject.SetActive(false);
 
-            //    for (int k = 0; k < 4; k++)
-            //    {
-            //        correctNums[k] = aIGuesses[k];
-            //    }
-            //    correctNumsFound = true;
-            //}
+            if (cancelling)
+            {
+                gameState = GameState.NarrowingDownCorrectNumbers;
+
+            }
+            else
+            {
+                if (bulls == 0)
+                {
+                    for (int i = 0; i < 4; i++)
+                    {
+                        if (aIGuesses[i] < 10)
+                        {
+                            notInSlot[i, aIGuesses[i]] = true;
+                        }
+                    }
+                }
+                if (cows + bulls == 0)
+                {
+                    for (int i = 0; i < 4; i++)
+                    {
+                        notInAnsNarrow.Add(aIGuesses[i]);
+                    }
+                    cancelling = true;
+                }
+                if ((bulls + cows == 4))
+                {
+                    print("break22");
+
+                    for (int k = 0; k < 4; k++)
+                    {
+                        correctNums[k] = aIGuesses[k];
+                    }
+                    correctNumsFound = true;
+
+                }
+            }
+            prevBullPlusCow = bulls + cows;
+            if (turns == 0)
+            {
+                firstTurnBullsPlusCows = bulls + cows;
+            }
+
         }
-
 
     }
 
-    void CancelOut()
+    void CancelOut() //narrows down which numbers are in and not in the correct code if StartingGuesses was unable to do so fully
     {
-        if(isInAns.Count == 4)
+        if (narrowingCounter > 9 && isInAnsNarrow.Count != 4) //if all possible nuimbers have been checked and no number is deduced, start back at StartingGuesses
         {
-            aIGuesses[0] = isInAns[0];
-            aIGuesses[1] = isInAns[1];
-            aIGuesses[2] = isInAns[2];
-            aIGuesses[3] = isInAns[3];
-
-            correctNums[0] = isInAns[0];
-            correctNums[1] = isInAns[1];
-            correctNums[2] = isInAns[2];
-            correctNums[3] = isInAns[3];
-
-            for (int i = 0; i < 4; i++)
-            {
-                correctNumsFound = true;
-            }
-
-            cancelling = false;
-        }
-        else if (/*wrongCheckCounter > 9 ||*/ wrongCheck.Count == 4)
-        {
-            for (int i = 0; i < 4; i++)
-            {
-                correctNums[i] = wrongCheck[i];
-                correctNumsFound = true;
-            }
-            cancelling = false;
+            SoftReset();
         }
         else
         {
-            do
+            if (isInAns.Count == 4) //if list has exactly 4 in it assign those to the current and correct guesses 
             {
-                aIGuesses[3] = wrongCheckCounter;
-                wrongCheckCounter++;
-            } while (notInAnsNarrow.Contains(aIGuesses[3]));
-        }
+                aIGuesses[0] = isInAns[0];
+                aIGuesses[1] = isInAns[1];
+                aIGuesses[2] = isInAns[2];
+                aIGuesses[3] = isInAns[3];
 
-        foreach (var listMem in aIGuesses)
-        {
-            aIGuessText.text += listMem.ToString();
-        }
-        aIGuessLog.Add(aIGuessText.text);
-        previousGuessesText.text += turns + "       " + aIGuessText.text + "N" + "\n";
+                correctNums[0] = isInAns[0];
+                correctNums[1] = isInAns[1];
+                correctNums[2] = isInAns[2];
+                correctNums[3] = isInAns[3];
 
-        if (cancelling)
-        {
-            gameState = GameState.BullsAndCows;
-        }
-        else
-        {
-            gameState = GameState.CheckForBulls;
+                for (int i = 0; i < 4; i++)
+                {
+                    correctNumsFound = true;
+                }
+
+                cancelling = false;
+            }
+            else if (isInAnsNarrow.Count == 4) //if list has exactly 4 in it assign those to the correct guesses 
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    correctNums[i] = isInAnsNarrow[i];
+                    correctNumsFound = true;
+                }
+                cancelling = false;
+            }
+            else // narrow down the numbers as being in the answer or not guess by guess
+            {
+                do
+                {
+                    aIGuesses[3] = narrowingCounter;
+                    narrowingCounter++;
+                } while (notInAnsNarrow.Contains(aIGuesses[3]));
+            }
+
+            foreach (var listMem in aIGuesses)
+            {
+                aIGuessText.text += listMem.ToString();
+            }
+            aIGuessLog.Add(aIGuessText.text);
+            previousGuessesText.text += turns + "       " + aIGuessText.text + "N" + "\n";
+
+            if (cancelling)
+            {
+                gameState = GameState.BullsAndCows;
+            }
+            else
+            {
+                gameState = GameState.CheckForBulls;
+            }
         }
     }
 
-    void CheckForBulls()
+    IEnumerator CheckForBulls() // counts bulls, if auto is off take player input for bulls
     {
-        if (idiot > 1 && !correctNumsFound)
+        if (recurringGuesses > 1 && !correctNumsFound)
         {
-            gameState = GameState.RandomNumberGuessing;
-            idiot = 0;
+            gameState = GameState.StartingGuesses;
+            recurringGuesses = 0;
         }
         else
         {
@@ -562,225 +634,70 @@ public class MastermindController : MonoBehaviour
 
             }
 
-            for (int i = 0; i < 4; i++)
+            if (auto.isOn)
             {
-                if (potentialAnswers[potAnsPtr].Substring(i, 1) == playerInputBox.text.Substring(i, 1))
+                for (int i = 0; i < 4; i++)
                 {
-                    bulls++;
+                    if (potentialAnswers[potAnsPtr].Substring(i, 1) == playerInputBox.text.Substring(i, 1))
+                    {
+                        bulls++;
+                    }
                 }
+                potAnsPtr++;
+
+                gameState = GameState.WrongRightGuess;
+
+                yield return new WaitForEndOfFrame();
             }
-            potAnsPtr++;
-            if (potAnsPtr == 24 && bulls != 4)
+            else if (!auto.isOn)
             {
+                enterNumberOfBullsAndCowsText.gameObject.SetActive(true);
+
+                bool go = false;
+                if (bullsInput.text.Length == 1 && cowsInput.text.Length == 1 && int.Parse(bullsInput.text) + int.Parse(cowsInput.text) <= 4 && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+                {
+                    bulls = int.Parse(bullsInput.text);
+
+                    potAnsPtr++;
+
+                    gameState = GameState.WrongRightGuess;
+
+                    go = true;
+                }
+                yield return new WaitUntil(() => go == true);
+                enterNumberOfBullsAndCowsText.gameObject.SetActive(false);
+
+            }
+
+
+
+            if (potAnsPtr == 24 && bulls != 4) // reset if the potentialAnswers array has no answer deduced as correct
+            {
+                SoftReset();
                 potAnsPtr = 0;
                 correctNumsFound = false;
-                //notInSlot = new bool[4, 10];
                 potentialAnswers.Clear();
-                gameState = GameState.RandomNumberGuessing;
-                corr = 0;
+                gameState = GameState.StartingGuesses;
                 for (int i = 0; i < 4; i++)
                 {
                     correctNums[i] = 0;
                     correctNumsBool[i] = false;
                 }
-                idiot++;
+                recurringGuesses++;
 
             }
         }
         potAnsPtr = Mathf.Clamp(potAnsPtr, 0, 23);
     }
 
-    void Infer()// checks notInSlot for any group of bool with only one false and assigns that to correctNums
-    {
-        
-        for(int i = 0; i < 4; i++)
-        {
-
-            int check = 0;
-            int num = 0;
-            for(int j = 0; j < 10; j++)
-            {
-                if(!notInSlot[i, j])
-                {
-                    check++;
-                    num = j;
-                }
-            }
-            if(check == 1)
-            {
-                if(correctNumsBool[i] == false)
-                {
-                    corr++;
-                    correctNums[i] = num;
-                    correctNumsBool[i] = true;
-
-                }
-            }
-        }
-    }
-
-    void Guess()
-    {
-        if (correctNumsFound)
-        {
-            if (wrongCheck.Count == 4)
-            {
-                for (int i = 0; i < 4; i++)
-                {
-                    correctNums[i] = wrongCheck[i];
-                    correctNumsFound = true;
-                }
-                gameState = GameState.CheckForBulls;
-
-                aIGuessText.text = "";
-
-                foreach (var listMem in potentialAnswers[potAnsPtr])
-                {
-                    aIGuessText.text += listMem.ToString(); // sets aIGuessText to the current AI guess
-                }
-                previousGuessesText.text += turns + "       " + aIGuessText.text + " C" + "\n"; // adds current guess to the list of previous guesses
-
-
-            }
-            else
-            {
-
-                if (potentialAnswers.Count == 0)
-                {
-                    Permute(correctNums, 0, correctNums.Count - 1); // fill potentialAnswers with permutations of correctNums
-                }
-                bool skip = false;
-                //do
-                //{
-                //    skip = false;
-                //    for (int i = 0; i < 4; i++)
-                //    {
-                //        if (notInSlot[i, int.Parse(potentialAnswers[potAnsPtr].Substring(i, 1))])
-                //        {
-                //            potAnsPtr++;
-                //            potAnsPtr = Mathf.Clamp(potAnsPtr, 0, 23);
-
-                //            skip = true;
-                //        }
-                //    }
-                //} while (skip && potAnsPtr >= 23);
-
-                //if (bulls == 0)
-                //{
-                //    if (potAnsPtr <= 6)
-                //    {
-                //        potAnsPtr = 6;
-                //    }
-                //    else if (potAnsPtr > 6 && potAnsPtr <= 12)
-                //    {
-                //        potAnsPtr = 12;
-                //    }
-                //    else if (potAnsPtr > 12 && potAnsPtr <= 18)
-                //    {
-                //        potAnsPtr = 18;
-                //    }
-
-                //}
-                aIGuessText.text = "";
-
-                foreach (var listMem in potentialAnswers[potAnsPtr])
-                {
-                    aIGuessText.text += listMem.ToString(); // sets aIGuessText to the current AI guess
-                }
-                previousGuessesText.text += turns + "       " + aIGuessText.text + " C" + "\n"; // adds current guess to the list of previous guesses
-            }
-            gameState = GameState.CheckForBulls;
-        }
-        else
-        {
-
-            string s = "";
-            int counter = -1;
-
-            do
-            {
-                print(2);
-                List<int> usedNums = new List<int>(); // to be filled with number that were already used in the current guess
-
-                AddCorrectNums(usedNums);
-
-                s = "";
-                print(3);
-                for (int i = 0; i < aIGuesses.Count; i++) //loop to guess the four numbers of current guess
-                {
-
-                    //if (correctNumsBool[i])
-                    //{
-                    //    aIGuesses[i] = correctNums[i];
-                    //}
-                    //else
-                    //{
-                        int looped = 0;
-
-                        do
-                        {
-                            //do
-                            //{
-                                print("1");
-                                counter++;
-                                if (counter > 9)// numbers can only be 0 - 9
-                                {
-                                    counter = 0;
-                                }
-                                counter = RandomNumber();
-                                looped++;
-                            //}
-                            //while (notInSlot[i, counter]/* || usedNums.Contains(counter)*//* && looped < 10*/);
-
-                        } while (usedNums.Contains(counter) && looped < 10);
-                        if (looped < 10 && !usedNums.Contains(counter))
-                        {
-                            usedNums.Add(counter);
-                            aIGuesses[i] = counter;
-                        }
-                        else
-                        {
-                            i = -1;
-                            usedNums = new List<int>(); // to be filled with number that were already used in the current guess
-
-                            AddCorrectNums(usedNums);
-
-                        }
-                    //}
-                    if (i >= 0)
-                    {
-                        s += aIGuesses[i];
-                    }
-                }
-            }
-            while (previousGuesses.Contains(s));
-
-            if (previousGuesses.Contains(s))
-            {
-                idiot++;
-            }
-            previousGuesses.Add(s);
-
-            foreach (var listMem in aIGuesses)
-            {
-                aIGuessText.text += listMem.ToString();
-            }
-            aIGuessLog.Add(aIGuessText.text);
-            previousGuessesText.text += turns + "       " + aIGuessText.text + "\n";
-
-            gameState = GameState.BullsAndCows;
-
-        }
-
-    }
-    void CheckPermutationList()
+    void CheckPermutationList() // goes through and presents each element of potentialAnswers as a guess until correct answer is found
     {
         if (potentialAnswers.Count == 0)
         {
             Permute(correctNums, 0, correctNums.Count - 1); // fill potentialAnswers with permutations of correctNums
         }
         bool skip = false;
-        do
+        do //used to skip any guess that has a number deduced as not being in a certain spot
         {
             skip = false;
             for (int i = 0; i < 4; i++)
@@ -795,22 +712,23 @@ public class MastermindController : MonoBehaviour
             }
         } while (skip && potAnsPtr == 23);
 
-        //if (bulls == 0)
-        //{
-        //    if (potAnsPtr <= 5)
-        //    {
-        //        potAnsPtr = 6;
-        //    }
-        //    else if (potAnsPtr > 5 && potAnsPtr <= 11)
-        //    {
-        //        potAnsPtr = 12;
-        //    }
-        //    else if (potAnsPtr > 11 && potAnsPtr <= 17)
-        //    {
-        //        potAnsPtr = 18;
-        //    }
+        if (bulls == 0 && potAnsPtr > 0)// used to traverse potentialAnswers quicker
+        {
 
-        //}
+            if (potAnsPtr <= 6)
+            {
+                potAnsPtr = 6;
+            }
+            else if (potAnsPtr <= 12)
+            {
+                potAnsPtr = 12;
+            }
+            else if (potAnsPtr <= 18)
+            {
+                potAnsPtr = 18;
+            }
+
+        }
         aIGuessText.text = "";
 
         foreach (var listMem in potentialAnswers[potAnsPtr])
@@ -820,94 +738,8 @@ public class MastermindController : MonoBehaviour
         previousGuessesText.text += turns + "       " + aIGuessText.text + " C" + "\n"; // adds current guess to the list of previous guesses
 
     }
-    void RandomGuess()
-    {
-        string s = "";
-        int counter = -1;
 
-        do
-        {
-            print(2);
-            List<int> usedNums = new List<int>(); // to be filled with number that were already used in the current guess
-
-            AddCorrectNums(usedNums);
-
-            s = "";
-            print(3);
-            for (int i = 0; i < aIGuesses.Count; i++) //loop to guess the four numbers of current guess
-            {
-
-                //if (correctNumsBool[i])
-                //{
-                //    aIGuesses[i] = correctNums[i];
-                //}
-                //else
-                //{
-                int looped = 0;
-
-                do
-                {
-                    do
-                    {
-                        print("1");
-                        counter++;
-                    if (counter > 9)// numbers can only be 0 - 9
-                    {
-                        counter = 0;
-                    }
-                    counter = RandomNumber();
-                    looped++;
-                    }
-                    while (notInSlot[i, counter]/* || usedNums.Contains(counter)*//* && looped < 10*/);
-
-                } while (usedNums.Contains(counter) && looped < 10);
-                if (looped < 10 && !usedNums.Contains(counter))
-                {
-                    usedNums.Add(counter);
-                    aIGuesses[i] = counter;
-                }
-                else
-                {
-                    i = -1;
-                    usedNums = new List<int>(); // to be filled with number that were already used in the current guess
-
-                    AddCorrectNums(usedNums);
-
-                }
-                //}
-                if (i >= 0)
-                {
-                    s += aIGuesses[i];
-                }
-            }
-        }
-        while (previousGuesses.Contains(s));
-
-        previousGuesses.Add(s);
-
-        foreach (var listMem in aIGuesses)
-        {
-            aIGuessText.text += listMem.ToString();
-        }
-        aIGuessLog.Add(aIGuessText.text);
-        previousGuessesText.text += turns + "       " + aIGuessText.text + "\n";
-
-        gameState = GameState.BullsAndCows;
-
-    }
-
-    void AddCorrectNums(List<int> a)
-    {
-        for (int i = 0; i < correctNumsBool.Count; i++)// checks if the correct number for this slot has already been found
-        {
-            if (correctNumsBool[i])
-            {
-                a.Add(correctNums[i]); //if so, add it to usedNums so it wont be used again in current guess
-            }
-        }
-
-    }
-    private void Permute(List<int> nums, int l, int r)
+    private void Permute(List<int> nums, int l, int r) // used to fill out potentialAnswers list
     {
         if (l == r)
         {
@@ -930,7 +762,7 @@ public class MastermindController : MonoBehaviour
             }
         }
     }
-    public void Swap(List<int> a, int i, int j)
+    public void Swap(List<int> a, int i, int j) //used in Permute()
     {
         int temp;
 
@@ -941,9 +773,7 @@ public class MastermindController : MonoBehaviour
     }
 }
 
-
-
-public enum GameState
+public enum GameState //enum used to make game states
 {
     BeforeStart,
     PlayerInput,
@@ -952,15 +782,8 @@ public enum GameState
     CheckForBulls,
     WrongRightGuess,
     GameOver,
-    WrongChecking,
-    RandomNumberGuessing,
+    StartingGuesses,
     NarrowingDownCorrectNumbers,
     GoingThroughPermutations
 }
 
-public enum GuessState
-{
-    Random,
-    Cancelling,
-    Permutations,
-}
