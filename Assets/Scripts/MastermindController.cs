@@ -51,6 +51,7 @@ public class MastermindController : MonoBehaviour
     public int recurringGuesses;
 
     [SerializeField] Toggle auto; // toggle for automatic mode, on by default
+    [SerializeField] GameObject instructions;
 
     // Start is called before the first frame update
     void Start()
@@ -64,6 +65,10 @@ public class MastermindController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        if(instructions.activeSelf == true && Input.GetKey(KeyCode.Escape))
+        {
+            instructions.SetActive(false);
+        }
         GameStateMachine();
 
         if (auto.isOn)
@@ -146,11 +151,12 @@ public class MastermindController : MonoBehaviour
                 CancelOut();
                 break;
             case GameState.GoingThroughPermutations:
+                aIGuessText.text = "";
+
                 previousGuessesText.text += "bulls:" + bulls + " cows:" + cows + "\n";
 
                 CheckPermutationList();
 
-                aIGuessText.text = "";
                 bulls = 0;
                 cows = 0;
 
@@ -170,6 +176,10 @@ public class MastermindController : MonoBehaviour
                 break;
 
             case GameState.WrongRightGuess:
+                if (turns == 0)
+                {
+                    firstTurnBullsPlusCows = bulls + cows;
+                }
 
                 turns++;
                 turnsText.text = "Turns: " + (turns);
@@ -770,6 +780,19 @@ public class MastermindController : MonoBehaviour
         a[i] = a[j];
         a[j] = temp;
 
+    }
+
+    public void OpenCloseInstructions()
+    {
+        if(instructions.activeSelf == true)
+        {
+            instructions.SetActive(false);
+
+        }
+        else if(instructions.activeSelf == false)
+        {
+            instructions.SetActive(true);
+        }
     }
 }
 
